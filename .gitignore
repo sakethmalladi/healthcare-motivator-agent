@@ -1,0 +1,79 @@
+# ----------------------------
+# Python cache and compiled files
+# ----------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ----------------------------
+# Virtual environments
+# ----------------------------
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# ----------------------------
+# Environment variables / API keys
+# ----------------------------
+.env
+.env.*
+*.key
+
+# ----------------------------
+# Logs and temporary files
+# ----------------------------
+*.log
+*.sqlite3
+*.db
+*.tmp
+
+# ----------------------------
+# Test / coverage
+# ----------------------------
+.pytest_cache/
+pytest_cache/
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+*.cover
+
+# Ignore pytest print outputs
+tests/__pycache__/
+tests/output/
+tests/*.out
+
+# ----------------------------
+# Jupyter Notebooks
+# ----------------------------
+.ipynb_checkpoints
+
+# ----------------------------
+# IDE / editor configs
+# ----------------------------
+.vscode/
+.idea/
+*.iml
+
+# ----------------------------
+# OS-specific
+# ----------------------------
+.DS_Store
+Thumbs.db
+
+# ----------------------------
+# Local tools / temporary API results
+# ----------------------------
+src/tools/__pycache__/
+src/tools/*.tmp
+src/tools/*.cache
+src/tools/results/
+
+# ----------------------------
+# Build / packaging
+# ----------------------------
+build/
+dist/
+*.egg-info/
