@@ -1,18 +1,11 @@
+# src/models/health_models.py
 from pydantic import BaseModel
-from typing import List, Dict
-
-class HealthData(BaseModel):
-    steps: int
-    calories: int
-    workouts: int
-    weight: float = None
-    goal_steps: int = None
-    goal_weight: float = None
+from typing import List, Dict, Union, Any
 
 class MotivationRequest(BaseModel):
     user_id: str
-    previous_data: str
-    current_data: str
+    previous_data: Union[str, Dict[str, Any]]
+    current_data: Union[str, Dict[str, Any]]
     action_taken: str
     next_action: str
     custom_instruction: str

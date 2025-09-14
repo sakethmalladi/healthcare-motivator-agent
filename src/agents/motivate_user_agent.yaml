@@ -1,0 +1,25 @@
+name: "Motivate User Agent"
+description: >
+  Helps users stay motivated toward their goals by combining
+  playbook strategy, user context, and external resources.
+instructions: |
+  Use the playbook + user context to provide a short motivational message.
+  Always suggest 1–2 actionable steps.
+  Include relevant links from web search and YouTube for support.
+  Keep the tone positive and supportive.
+
+model: "gpt-4.1-mini"
+
+tools:
+  - type: function
+    name: search_web
+    description: "Search DuckDuckGo for helpful motivation/health articles"
+    parameters:
+      query: { type: string }
+      max_results: { type: integer, default: 3 }
+
+  - type: function
+    name: search_youtube
+    description: "Search YouTube for motivational or instructional videos"
+    parameters:
+      query: { type: string }
