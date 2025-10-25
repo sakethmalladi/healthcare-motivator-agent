@@ -1,4 +1,8 @@
-openai
+openai-agents
 ddgs
 pydantic
 pytest
+fastapi
+uvicorn
+youtube-search-python
+    

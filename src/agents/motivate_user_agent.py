@@ -10,7 +10,7 @@ from src.tools.search_youtube import search_youtube
 
 class MotivateUserAgent:
     def __init__(self, client=None, assistant_id: str = None):
-        self.client = client or OpenAI()
+        self.client = client or OpenAI()    
         self.assistant_id = assistant_id or os.getenv("MOTIVATE_AGENT_ID")
         self.use_sdk = self.assistant_id is not None   # toggle mode
 
