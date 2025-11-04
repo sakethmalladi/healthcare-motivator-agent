@@ -1,4 +1,4 @@
-# Agentic Weightloss Motivator
+# MotivAI
 
 A comprehensive AI-powered health coaching system that provides personalized health advice, motivation, web articles, YouTube videos, and journaling support using OpenAI GPT models and multi-agent architecture.
 
