@@ -1,0 +1,110 @@
+# Project Configuration File
+
+project:
+  name: "Agentic Weightloss Motivator"
+  version: "1.0.0"
+  description: "AI-powered health coaching system with multi-agent architecture"
+  author: "Your Name"
+  license: "MIT"
+
+# API Configuration
+api:
+  host: "0.0.0.0"
+  port: 8000
+  reload: true
+  workers: 1
+  title: "Healthcare Motivator Agent API"
+  version: "1.0.0"
+
+# OpenAI Configuration
+openai:
+  model: "gpt-4o-mini"
+  planning_model: "gpt-4o-mini"
+  temperature: 0.7
+  max_tokens: 1000
+  timeout: 30
+
+# Agent Configuration
+agents:
+  planning:
+    enabled: true
+    confidence_threshold: 0.5
+    use_deterministic_logic: true
+  
+  youtube_search:
+    enabled: true
+    max_results: 3
+    default_duration: "medium"
+  
+  curated_search:
+    enabled: true
+    max_results: 3
+    trusted_sources:
+      - "mayoclinic.org"
+      - "webmd.com"
+      - "healthline.com"
+      - "medicalnewstoday.com"
+      - "pubmed.ncbi.nlm.nih.gov"
+  
+  web_search:
+    enabled: true
+    max_results: 3
+    search_type: "general"
+  
+  journaling:
+    enabled: true
+    default_journal_type: "daily_reflection"
+
+# Health Score Configuration
+health_scoring:
+  steps:
+    excellent: 10000
+    good: 7500
+    moderate: 5000
+    poor: 3000
+  
+  weight:
+    healthy_range_min: 60
+    healthy_range_max: 80
+    acceptable_range_min: 55
+    acceptable_range_max: 85
+  
+  sleep:
+    optimal_min: 7
+    optimal_max: 9
+    acceptable_min: 6
+    acceptable_max: 10
+
+# Theme Thresholds
+theme_thresholds:
+  crisis_intervention: 30
+  struggle_support: 50
+  motivation_needed: 70
+  habit_building: 85
+  progress_celebration: 85
+
+# Evaluation Configuration
+evaluations:
+  pass_threshold: 0.7
+  score_weights:
+    planning: 0.3
+    agents_success: 0.3
+    theme_match: 0.15
+    topic_match: 0.15
+    tone_match: 0.1
+  min_agents_successful: 2
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/app.log"
+  max_bytes: 10485760  # 10MB
+  backup_count: 5
+
+# Testing Configuration
+testing:
+  test_data_dir: "tests/fixtures"
+  mock_health_data: true
+  async_test_timeout: 30
+
