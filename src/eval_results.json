@@ -1,0 +1,167 @@
+{
+  "timestamp": "2025-11-04T22:50:03.551060",
+  "stats": {
+    "total_cases": 5,
+    "passed": 5,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "average_score": 0.9165000000000001,
+    "score_breakdown": {
+      "planning": 1.0,
+      "agents_success": 0.825,
+      "theme_match": 1.0,
+      "topic_match": 0.86,
+      "tone_match": 0.9
+    }
+  },
+  "scores": [
+    {
+      "case_id": "weight_loss_progress",
+      "case_name": "Weight Loss Progress Scenario",
+      "passed": true,
+      "overall_score": 0.9475,
+      "planning_score": 1.0,
+      "agents_success_score": 0.8250000000000001,
+      "tone_match_score": 1.0,
+      "topic_match_score": 1.0,
+      "theme_match_score": 1.0,
+      "details": {
+        "planning_decision": {
+          "theme": "Progress Celebration",
+          "topic": "Health Habits",
+          "tone": "Dana",
+          "confidence": 0.9
+        },
+        "agents_successful": 3,
+        "total_agents": 4,
+        "scores": {
+          "planning": 1.0,
+          "agents_success": 0.8250000000000001,
+          "theme": 1.0,
+          "topic": 1.0,
+          "tone": 1.0
+        }
+      },
+      "errors": []
+    },
+    {
+      "case_id": "crisis_intervention",
+      "case_name": "Health Crisis Scenario",
+      "passed": true,
+      "overall_score": 0.9475,
+      "planning_score": 1.0,
+      "agents_success_score": 0.8250000000000001,
+      "tone_match_score": 1.0,
+      "topic_match_score": 1.0,
+      "theme_match_score": 1.0,
+      "details": {
+        "planning_decision": {
+          "theme": "Crisis Intervention",
+          "topic": "Health Habits",
+          "tone": "Sama",
+          "confidence": 0.95
+        },
+        "agents_successful": 3,
+        "total_agents": 4,
+        "scores": {
+          "planning": 1.0,
+          "agents_success": 0.8250000000000001,
+          "theme": 1.0,
+          "topic": 1.0,
+          "tone": 1.0
+        }
+      },
+      "errors": []
+    },
+    {
+      "case_id": "fitness_enthusiast",
+      "case_name": "Fitness Enthusiast Scenario",
+      "passed": true,
+      "overall_score": 0.9475,
+      "planning_score": 1.0,
+      "agents_success_score": 0.8250000000000001,
+      "tone_match_score": 1.0,
+      "topic_match_score": 1.0,
+      "theme_match_score": 1.0,
+      "details": {
+        "planning_decision": {
+          "theme": "Progress Celebration",
+          "topic": "Workout Plan",
+          "tone": "Dana",
+          "confidence": 0.9
+        },
+        "agents_successful": 3,
+        "total_agents": 4,
+        "scores": {
+          "planning": 1.0,
+          "agents_success": 0.8250000000000001,
+          "theme": 1.0,
+          "topic": 1.0,
+          "tone": 1.0
+        }
+      },
+      "errors": []
+    },
+    {
+      "case_id": "struggling_beginner",
+      "case_name": "Struggling Beginner Scenario",
+      "passed": true,
+      "overall_score": 0.7925000000000001,
+      "planning_score": 1.0,
+      "agents_success_score": 0.8250000000000001,
+      "tone_match_score": 0.5,
+      "topic_match_score": 0.3,
+      "theme_match_score": 1.0,
+      "details": {
+        "planning_decision": {
+          "theme": "Struggle Support",
+          "topic": "Meal Plan",
+          "tone": "Dana",
+          "confidence": 0.8
+        },
+        "agents_successful": 3,
+        "total_agents": 4,
+        "scores": {
+          "planning": 1.0,
+          "agents_success": 0.8250000000000001,
+          "theme": 1.0,
+          "topic": 0.3,
+          "tone": 0.5
+        }
+      },
+      "errors": [
+        "Topic 'Meal Plan' not in expected topics: ['Health Habits']",
+        "Tone 'Dana' not in expected tones: ['Sama']"
+      ]
+    },
+    {
+      "case_id": "muscle_building",
+      "case_name": "Muscle Building Scenario",
+      "passed": true,
+      "overall_score": 0.9475,
+      "planning_score": 1.0,
+      "agents_success_score": 0.8250000000000001,
+      "tone_match_score": 1.0,
+      "topic_match_score": 1.0,
+      "theme_match_score": 1.0,
+      "details": {
+        "planning_decision": {
+          "theme": "Progress Celebration",
+          "topic": "Workout Plan",
+          "tone": "Dana",
+          "confidence": 0.9
+        },
+        "agents_successful": 3,
+        "total_agents": 4,
+        "scores": {
+          "planning": 1.0,
+          "agents_success": 0.8250000000000001,
+          "theme": 1.0,
+          "topic": 1.0,
+          "tone": 1.0
+        }
+      },
+      "errors": []
+    }
+  ]
+}

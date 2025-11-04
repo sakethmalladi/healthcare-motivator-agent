@@ -1,25 +1,16 @@
 # src/agents/planning_agent.py
 
-import os
 from typing import Dict, Any
-from agents import Agent, Runner
 from src.models.agent_models import PlanningRequest, PlanningResponse, PlanningDecision, AgentType
 from src.models.health_kit_models import HealthAnalysis
 from src.tools.planning_tool import PlanningTool, IndianTone, HealthTopic, HealthTheme
-from src.utils.prompt_builder import build_planning_prompt
 
 class PlanningAgent:
     """AI Planning Agent for determining theme, topic, tone, and timing"""
     
     def __init__(self):
-        self.agent = Agent(
-            name="PlanningAgent",
-            instructions=self._get_agent_instructions(),
-            tools=[],  # No external tools needed for planning
-            model="gpt-5"  # Using GPT-5 as requested
-        )
-        self.runner = Runner()
         self.planning_tool = PlanningTool()
+        self.tone_descriptions = self.planning_tool.tone_descriptions
     
     def _get_agent_instructions(self) -> str:
         """Get agent instructions for planning"""
@@ -64,29 +55,29 @@ class PlanningAgent:
                 request.health_analysis.get("previous_data")
             )
             
-            # Use the enhanced prompt builder
-            agent_message = build_planning_prompt(
-                health_data=request.health_data,
-                user_goals=request.user_goals,
-                user_preferences=request.user_preferences
-            )
+            # Use PlanningTool's deterministic logic instead of AI parsing
+            theme = self.planning_tool.determine_theme(health_analysis)
+            # Improve topic selection by considering user goals
+            topic = self._select_topic_with_goals(health_analysis, theme, request.user_goals)
+            tone = self.planning_tool.select_tone(health_analysis, theme, topic)
+            timing = self.planning_tool.determine_timing(health_analysis, theme)
             
-            # Run the agent
-            response = self.runner.run_sync(self.agent, agent_message)
+            # Build reasoning based on health analysis
+            reasoning = self._build_reasoning(health_analysis, theme, topic, tone, request)
             
-            # Parse the agent's response to extract decisions
-            decisions = self._parse_agent_response(response.final_output)
+            # Calculate confidence based on health score and data quality
+            confidence_score = self._calculate_confidence(health_analysis, request)
             
             # Create the planning decision
             planning_decision = PlanningDecision(
-                theme=decisions.get("theme", "Motivation Needed"),
-                topic=decisions.get("topic", "Health Habits"),
-                tone=decisions.get("tone", "Sama"),
-                tone_description=self._get_tone_description(decisions.get("tone", "Sama")),
-                tone_characteristics=self._get_tone_characteristics(decisions.get("tone", "Sama")),
-                timing=decisions.get("timing", {"immediate": False, "frequency": "daily"}),
-                reasoning=decisions.get("reasoning", "Default reasoning"),
-                confidence_score=decisions.get("confidence", 0.7)
+                theme=theme.value,
+                topic=topic.value,
+                tone=tone.value,
+                tone_description=self.tone_descriptions[tone]["description"],
+                tone_characteristics=self.tone_descriptions[tone]["characteristics"],
+                timing=timing,
+                reasoning=reasoning,
+                confidence_score=confidence_score
             )
             
             # Create context for other agents
@@ -102,8 +93,8 @@ class PlanningAgent:
                 "concerns": health_analysis.concerns,
                 "achievements": health_analysis.achievements,
                 "next_goals": health_analysis.next_goals
-            }
-            
+            }          
+
             return PlanningResponse(
                 agent_type=AgentType.PLANNING,
                 success=True,
@@ -166,68 +157,82 @@ class PlanningAgent:
         
         return " | ".join(context_parts) if context_parts else "General health planning"
     
-    def _parse_agent_response(self, agent_output: str) -> Dict[str, Any]:
-        """Parse the agent's response to extract planning decisions"""
-        # Simple parsing - in a more sophisticated implementation, this would use structured output
-        decisions = {
-            "theme": "Motivation Needed",
-            "topic": "Health Habits", 
-            "tone": "Sama",
-            "timing": {"immediate": False, "frequency": "daily"},
-            "reasoning": "Default reasoning from AI agent",
-            "confidence": 0.7
+    def _build_reasoning(self, health_analysis, theme, topic, tone, request: PlanningRequest) -> str:
+        """Build reasoning for the planning decision"""
+        reasoning_parts = []
+        
+        reasoning_parts.append(f"Health score: {health_analysis.overall_health_score:.1f}/100")
+        
+        if health_analysis.achievements:
+            reasoning_parts.append(f"Achievements: {', '.join(health_analysis.achievements[:2])}")
+        
+        if health_analysis.concerns:
+            reasoning_parts.append(f"Concerns: {', '.join(health_analysis.concerns[:2])}")
+        
+        reasoning_parts.append(f"Selected {theme.value} theme because health score indicates {self._get_theme_rationale(theme)}")
+        reasoning_parts.append(f"Selected {topic.value} topic based on health data analysis")
+        reasoning_parts.append(f"Selected {tone.value} tone ({self.tone_descriptions[tone]['description']})")
+        
+        if request.user_goals:
+            reasoning_parts.append(f"User goals: {', '.join(request.user_goals[:2])}")
+        
+        return ". ".join(reasoning_parts) + "."
+    
+    def _get_theme_rationale(self, theme) -> str:
+        """Get rationale for theme selection"""
+        rationale_map = {
+            HealthTheme.CRISIS_INTERVENTION: "critical intervention needed",
+            HealthTheme.STRUGGLE_SUPPORT: "user is struggling and needs support",
+            HealthTheme.MOTIVATION_NEEDED: "moderate progress requiring motivation",
+            HealthTheme.HABIT_BUILDING: "good progress, focus on habit building",
+            HealthTheme.PROGRESS_CELEBRATION: "excellent progress deserving celebration"
         }
+        return rationale_map.get(theme, "appropriate intervention level")
+    
+    def _select_topic_with_goals(self, health_analysis, theme, user_goals) -> HealthTopic:
+        """Select topic considering user goals"""
+        # First try PlanningTool's logic
+        topic = self.planning_tool.select_topic(health_analysis, theme)
         
-        # Try to extract decisions from the agent output
-        output_lower = agent_output.lower()
+        # Override based on user goals if they're clear
+        if user_goals:
+            goals_text = " ".join(user_goals).lower()
+            
+            # Check for workout-related keywords
+            if any(word in goals_text for word in ["workout", "exercise", "fitness", "run", "strength", "muscle", "gym", "training"]):
+                return HealthTopic.WORKOUT_PLAN
+            
+            # Check for meal/nutrition-related keywords
+            if any(word in goals_text for word in ["meal", "diet", "nutrition", "eat", "food", "calorie", "weight loss"]):
+                return HealthTopic.MEAL_PLAN
+            
+            # Check for habit-related keywords
+            if any(word in goals_text for word in ["habit", "routine", "lifestyle", "daily", "consistency"]):
+                return HealthTopic.HEALTH_HABITS
         
-        # Extract theme
-        if "crisis" in output_lower:
-            decisions["theme"] = "Crisis Intervention"
-        elif "struggle" in output_lower:
-            decisions["theme"] = "Struggle Support"
-        elif "progress" in output_lower or "celebration" in output_lower:
-            decisions["theme"] = "Progress Celebration"
-        elif "habit" in output_lower:
-            decisions["theme"] = "Habit Building"
-        elif "goal" in output_lower:
-            decisions["theme"] = "Goal Adjustment"
+        return topic
+    
+    def _calculate_confidence(self, health_analysis, request: PlanningRequest) -> float:
+        """Calculate confidence score based on data quality and health score"""
+        confidence = 0.7  # Base confidence
         
-        # Extract topic
-        if "workout" in output_lower or "exercise" in output_lower:
-            decisions["topic"] = "Workout Plan"
-        elif "meal" in output_lower or "nutrition" in output_lower or "diet" in output_lower:
-            decisions["topic"] = "Meal Plan"
-        elif "habit" in output_lower or "lifestyle" in output_lower:
-            decisions["topic"] = "Health Habits"
+        # Increase confidence if health score is clear
+        if health_analysis.overall_health_score < 30 or health_analysis.overall_health_score > 85:
+            confidence += 0.15  # Clear cases
         
-        # Extract tone
-        if "sama" in output_lower or "gentle" in output_lower:
-            decisions["tone"] = "Sama"
-        elif "dana" in output_lower or "generous" in output_lower or "supportive" in output_lower:
-            decisions["tone"] = "Dana"
-        elif "dhanda" in output_lower or "firm" in output_lower or "strict" in output_lower:
-            decisions["tone"] = "Dhanda"
-        elif "bedha" in output_lower or "strategic" in output_lower or "analytical" in output_lower:
-            decisions["tone"] = "Bedha"
+        # Increase confidence if we have good data
+        if health_analysis.recommendations and len(health_analysis.recommendations) > 0:
+            confidence += 0.05
         
-        # Extract timing
-        if "immediate" in output_lower or "urgent" in output_lower:
-            decisions["timing"] = {"immediate": True, "frequency": "twice_daily"}
-        elif "daily" in output_lower:
-            decisions["timing"] = {"immediate": False, "frequency": "daily"}
+        # Increase confidence if user goals are clear
+        if request.user_goals and len(request.user_goals) > 0:
+            confidence += 0.05
         
-        # Extract confidence
-        if "confidence" in output_lower:
-            # Simple confidence extraction
-            if "high" in output_lower:
-                decisions["confidence"] = 0.9
-            elif "medium" in output_lower:
-                decisions["confidence"] = 0.7
-            elif "low" in output_lower:
-                decisions["confidence"] = 0.4
+        # Decrease confidence if concerns are high
+        if len(health_analysis.concerns) > 3:
+            confidence -= 0.05
         
-        return decisions
+        return min(0.95, max(0.5, confidence))
     
     def _get_tone_description(self, tone: str) -> str:
         """Get description for the selected tone"""
@@ -264,5 +269,5 @@ class PlanningAgent:
             ],
             "supported_tones": ["Sama", "Dana", "Dhanda", "Bedha"],
             "supported_topics": ["Workout Plan", "Meal Plan", "Health Habits"],
-            "model": "gpt-5"
+            "model": "gpt-4o-mini"
         }

@@ -75,7 +75,7 @@ class JournalingAgent:
             """
             
             # Run the agent
-            response = self.runner.run_sync(self.agent, agent_message)
+            response = await self.runner.run(self.agent, agent_message)
             
             # Create the journal entry
             journal_entry = JournalEntry(

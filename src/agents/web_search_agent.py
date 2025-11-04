@@ -104,11 +104,9 @@ class WebSearchAgent:
             Include community insights, recent trends, and real-world experiences.
             """
             
-            # Run the agent
-            response = self.runner.run_sync(self.agent, agent_message)
-            
-            # Parse the response and extract web results
-            results = self._parse_agent_response(response.final_output, search_query)
+            # Use the tool directly instead of relying on agent parsing
+            # This is more reliable than parsing agent output
+            results = self._parse_agent_response("", search_query)
             
             return WebSearchResponse(
                 agent_type=AgentType.WEB_SEARCH,

@@ -126,11 +126,9 @@ class CuratedSearchAgent:
             Focus on evidence-based content from trusted sources.
             """
             
-            # Run the agent
-            response = self.runner.run_sync(self.agent, agent_message)
-            
-            # Parse the response and extract article information
-            articles = self._parse_agent_response(response.final_output, search_query)
+            # Use the tool directly instead of relying on agent parsing
+            # This is more reliable than parsing agent output
+            articles = self._parse_agent_response("", search_query)
             
             return CuratedSearchResponse(
                 agent_type=AgentType.CURATED_SEARCH,

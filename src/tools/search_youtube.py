@@ -1,6 +1,8 @@
 # src/tools/search_youtube.py
 
-def search_youtube(query: str) -> list[str]:
+from typing import List
+
+def search_youtube(query: str) -> List[str]:
     """YouTube search function - enhanced error handling for Agents SDK."""
     try:
         from youtubesearchpython import VideosSearch

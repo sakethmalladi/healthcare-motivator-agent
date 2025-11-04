@@ -241,8 +241,6 @@ def build_planning_prompt(health_data: Dict[str, Any], user_goals: List[str],
     health_metrics = _extract_health_metrics(current_data, previous_data)
     
     return f"""
-PLANNING AGENT PROMPT:
-
 HEALTH DATA ANALYSIS:
 {_build_health_summary(health_metrics)}
 
@@ -252,25 +250,6 @@ USER PROFILE:
 - Current Challenges: {', '.join(challenges) if challenges else 'None identified'}
 - Recent Achievements: {', '.join(achievements) if achievements else 'None reported'}
 - Preferences: {user_preferences or 'No specific preferences'}
-
-INDIAN HISTORICAL TONE CONTEXT:
-- Sama (सम): Gentle, peaceful approach like Buddha's middle path - for beginners, sensitive situations
-- Dana (दान): Generous, giving approach like a wise teacher - for progress celebration, learning
-- Dhanda (दंड): Firm, disciplinary approach like a strict guru - for lack of progress, excuses
-- Bedha (भेद): Strategic, analytical approach like Chanakya's tactics - for complex goals, optimization
-
-TOPIC OPTIONS:
-- Workout Plan: Focus on exercise routines, fitness activities, physical training
-- Meal Plan: Focus on nutrition, diet planning, healthy eating habits
-- Health Habits: Focus on lifestyle changes, daily routines, wellness practices
-
-THEME OPTIONS:
-- Motivation Needed: User needs encouragement and motivation
-- Progress Celebration: User has made good progress and should be celebrated
-- Struggle Support: User is struggling and needs emotional support
-- Goal Adjustment: User's goals need to be modified or refined
-- Habit Building: User needs help building consistent habits
-- Crisis Intervention: User needs immediate support and intervention
 
 Please analyze the health data and determine the most appropriate:
 1. THEME (current situation)
@@ -282,7 +261,6 @@ Please analyze the health data and determine the most appropriate:
 
 Consider the user's emotional state, progress level, and specific needs.
 """
-
 # ========== HELPER FUNCTIONS ==========
 
 def _extract_health_metrics(current_data: HealthKitData, previous_data: HealthKitData = None) -> Dict[str, Any]:

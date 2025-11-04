@@ -2,7 +2,7 @@
 
 import os
 from typing import List
-from agents import Agent, Runner
+from agents import Agent, Runner    
 from src.models.agent_models import YouTubeSearchRequest, YouTubeSearchResponse, YouTubeVideo, AgentType
 from src.tools.search_youtube import search_youtube
 
@@ -91,11 +91,10 @@ class YouTubeSearchAgent:
             Please find the most relevant and helpful videos for this user's health journey.
             """
             
-            # Run the agent
-            response = self.runner.run_sync(self.agent, agent_message)
+            # Use the tool directly instead of relying on agent parsing
+            # This is more reliable than parsing agent output
+            videos = self._parse_agent_response("", search_query)
             
-            # Parse the response and extract video information
-            videos = self._parse_agent_response(response.final_output, search_query)
             
             return YouTubeSearchResponse(
                 agent_type=AgentType.YOUTUBE_SEARCH,

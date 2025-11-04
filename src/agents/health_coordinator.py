@@ -17,7 +17,7 @@ from src.models.health_kit_models import HealthKitData
 from src.utils.prompt_builder import build_agent_specific_prompt
 
 class HealthCoordinator:
-    """Main coordinator that manages all 4 agents in parallel"""
+    """Main coordinator that manages all 4 agentsl"""
     
     def __init__(self):
         self.planning_agent = PlanningAgent()
@@ -28,7 +28,7 @@ class HealthCoordinator:
     
     async def process_health_request(self, user_id: str, health_data: Dict[str, Any], 
                                    custom_instruction: str = None) -> CoordinatedResponse:
-        """Process a health request using all agents in parallel"""
+        """Process a health request using all agents"""
         try:
             # Step 1: Create planning request
             planning_request = PlanningRequest(
