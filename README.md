@@ -2,7 +2,7 @@
 
 A comprehensive AI-powered health coaching system that provides personalized health advice, motivation, web articles, YouTube videos, and journaling support using OpenAI GPT models and multi-agent architecture.
 
-## 📋 Table of Contents
+## Table of Contents
 
 1. [Overview](#overview)
 2. [Features](#features)
@@ -18,7 +18,7 @@ A comprehensive AI-powered health coaching system that provides personalized hea
 12. [Troubleshooting](#troubleshooting)
 13. [Contributing](#contributing)
 
-## 🎯 Overview
+## Overview
 
 The Agentic Weightloss Motivator is an intelligent health assistant that uses a multi-agent system to provide personalized health guidance. The system coordinates multiple specialized agents that work together to:
 
@@ -27,13 +27,13 @@ The Agentic Weightloss Motivator is an intelligent health assistant that uses a 
 - Create personalized journal entries
 - Provide motivation based on user's current health state
 
-The system uses Indian historical philosophical approaches (Sama, Dana, Dhanda, Bedha) to determine the appropriate tone and style of guidance.
 
-## ✨ Features
+
+## Features
 
 ### Core Capabilities
 - **Health Data Analysis**: Analyzes steps, calories, weight, sleep, and workout data
-- **Intelligent Planning**: Determines themes, topics, tones, and timing based on health scores
+- **Intelligent Planning**: Determines themes, topics, and timing based on health scores
 - **Multi-Agent Coordination**: Orchestrates 4 parallel agents:
   - **Planning Agent**: Analyzes health data and creates strategic plans
   - **YouTube Search Agent**: Finds relevant fitness and health videos
@@ -45,16 +45,15 @@ The system uses Indian historical philosophical approaches (Sama, Dana, Dhanda, 
 - API-free DuckDuckGo search for health articles
 - API-free YouTube search for fitness motivation videos
 - Mock Apple Health Kit integration for testing
-- Comprehensive evaluation framework
 - FastAPI web interface
-- Indian historical tone selection (Sama, Dana, Dhanda, Bedha)
 
-## 🏗️ Architecture
+
+## Architecture
 
 The system uses a coordinator pattern where:
 
 1. **Health Coordinator** receives health requests
-2. **Planning Agent** analyzes data and creates a plan (theme, topic, tone, timing)
+2. **Planning Agent** analyzes data and creates a plan (theme, topic, timing)
 3. **Four agents run in parallel**:
    - YouTube Search Agent
    - Curated Search Agent
@@ -77,7 +76,7 @@ Planning Agent (analyzes health data)
 Coordinated Response
 ```
 
-## 📦 Prerequisites
+## Prerequisites
 
 Before you begin, ensure you have the following installed:
 
@@ -98,7 +97,7 @@ Before you begin, ensure you have the following installed:
    - Create an API key from: https://platform.openai.com/api-keys
    - Keep your API key secure (you'll need it later)
 
-## 🚀 Installation
+## Installation
 
 Follow these steps carefully to set up the project:
 
@@ -177,7 +176,7 @@ Check if Python can import the packages:
 python -c "import openai; import ddgs; import pydantic; print('All packages installed successfully!')"
 ```
 
-## ⚙️ Configuration
+## Configuration
 
 ### Step 1: Create Environment File
 
@@ -219,7 +218,7 @@ agentic-weightloss-motivator/
 └── src/
 ```
 
-## 💻 Usage
+## Usage
 
 ### Option 1: Run Complete System Test (Recommended for First Time)
 
@@ -334,7 +333,92 @@ Run it:
 python test_my_health.py
 ```
 
-## 🧪 Running Tests
+## Running Tests
+## Agent Evals
+
+This project includes simple Agent Evals you can run locally:
+
+Datasets:
+- `datasets/planning.jsonl` (planning quality)
+- `datasets/resources.jsonl` (resource relevance)
+- `datasets/journaling.jsonl` (journaling usefulness)
+
+Run each eval:
+```bash
+python scripts/evals/run_planning_eval.py
+python scripts/evals/run_resources_eval.py
+python scripts/evals/run_journaling_eval.py
+```
+
+Notes:
+- Set `OPENAI_PROJECT` and `OPENAI_ORG_ID` (if applicable) so requests appear under the intended project in the dashboard.
+- Results are printed as JSON with an average score and per-case scores. You can redirect output to a file if desired.
+
+### Details
+
+- What gets evaluated
+  - Planning quality: Does the plan choose the correct topic and explicitly address listed challenges? Is timing appropriate?
+  - Resource relevance: Do top web and YouTube results align with the user context and come from reputable sources?
+  - Journaling usefulness: Is the entry empathetic, actionable, and aligned with the user’s stated goals/mood?
+
+- Datasets (JSONL)
+  - Each line is a JSON object. Example (planning):
+    ```json
+    {"id":"p1","user_goals":["Lose 5kg in 2 months"],"mood":"motivated","energy_level":7,"challenges":["evening snacking"],"expected_topic":"Meal Plan","expected_success_criteria":["mentions sustainable habits","addresses evening snacking"]}
+    ```
+  - You can add more lines/cases to expand coverage.
+
+- Running in Windows CMD (recommended)
+  - From project root:
+    ```cmd
+    python scripts\evals\run_planning_eval.py > results_planning.json
+    type results_planning.json
+    ```
+  - Similarly for resources/journaling:
+    ```cmd
+    python scripts\evals\run_resources_eval.py > results_resources.json
+    python scripts\evals\run_journaling_eval.py > results_journaling.json
+    ```
+
+- Running in PowerShell
+  - ```pwsh
+    python scripts/evals/run_planning_eval.py | Out-File -Encoding utf8 results_planning.json
+    Get-Content results_planning.json
+    ```
+
+- Interpreting results
+  - Output fields:
+    - `average`: overall score (0..1)
+    - `results[]`: per-case scores and notes
+  - Typical acceptance targets:
+    - Planning average ≥ 0.8
+    - Resources average ≥ 0.7
+    - Journaling average ≥ 0.7
+
+- Observability in OpenAI Dashboard
+  - Requests are tagged with metadata to aid filtering:
+    - Planning: `agent=planning_agent`, `purpose=health_planning`
+    - Web: `agent=web_search`, `purpose=content_discovery`
+    - YouTube: `agent=youtube_search`, `purpose=content_discovery`
+    - Curated: `agent=curated_search`, `purpose=curation`
+    - Journaling: `agent=journaling`
+  - In Logs → Requests, set Date=Today, Model=gpt-4o-mini, and add Metadata filter by `agent=...`.
+
+- Environment
+  - Ensure these env vars are set for the evals to run:
+    - `OPENAI_API_KEY`
+    - `OPENAI_PROJECT` (dashboard project selector)
+    - `OPENAI_ORG_ID` (if in an org)
+
+- Troubleshooting
+  - `ModuleNotFoundError: No module named 'src'`:
+    - Run from project root (same folder as `requirements.txt`).
+    - Or set `PYTHONPATH=.` in CMD before running.
+  - Intermittent `400 Bad Request` from `/v1/responses`:
+    - The scripts continue and reissue requests; you should still get final JSON output.
+  - Empty or low scores:
+    - Expand datasets or adjust heuristics; ensure internet access for web/YouTube queries.
+
 
 ### Run All Tests
 
@@ -361,41 +445,7 @@ pip install pytest-cov
 python -m pytest tests/ --cov=src --cov-report=html
 ```
 
-## 📊 Running Evaluations
-
-The project includes a comprehensive evaluation framework to test system performance.
-
-### Run All Evaluations
-
-```bash
-python src/evals/run_evals.py
-```
-
-**What this does:**
-- Tests 5 different health scenarios
-- Evaluates planning decisions, agent success, theme/topic/tone matching
-- Generates detailed score reports
-- Saves results to `src/eval_results.json`
-
-**Expected Output:**
-```
-🧪 AGENTIC WEIGHTLOSS MOTIVATOR - EVALUATION SUITE
-======================================================================
-📈 BATCH EVALUATION SUMMARY
-Total Cases: 5
-Passed: 5 ✅
-Failed: 0 ❌
-Pass Rate: 100.00%
-Average Score: 91.65%
-```
-
-### Run Evaluations with Pytest
-
-```bash
-python -m pytest tests/test_evals.py -v -s
-```
-
-## 📡 API Documentation
+## API Documentation
 
 ### Start the API Server
 
@@ -449,7 +499,7 @@ Once the server is running, visit:
 - **Swagger UI**: http://localhost:8000/docs
 - **ReDoc**: http://localhost:8000/redoc
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 agentic-weightloss-motivator/
@@ -491,22 +541,15 @@ agentic-weightloss-motivator/
 │   ├── config/             # Configuration
 │   │   └── settings.py            # Settings and environment
 │   │
-│   ├── evals/              # Evaluation framework
-│   │   ├── eval_datasets.py       # Test case definitions
-│   │   ├── eval_scorers.py        # Scoring logic
-│   │   ├── eval_runner.py         # Evaluation execution
-│   │   └── run_evals.py           # Evaluation script
-│   │
 │   └── scripts/            # Utility scripts
 │       └── run_motivate_agent.py
 │
 └── tests/                  # Test files
     ├── test_health_agent.py    # Health agent tests
-    ├── test_evals.py           # Evaluation tests
     └── conftest.py             # Pytest configuration
 ```
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### Issue: "ModuleNotFoundError: No module named 'src'"
 
@@ -580,7 +623,7 @@ Use a different port:
 python -m uvicorn src.app:app --reload --port 8001
 ```
 
-## 🎓 Understanding the System
+## Understanding the System
 
 ### Health Score Calculation
 
@@ -599,19 +642,6 @@ Themes are determined by health score:
 - **70-85**: Habit Building
 - **> 85**: Progress Celebration
 
-### Tone Selection (Indian Historical Context)
-
-- **Sama (सम)**: Gentle, peaceful approach (Buddha's middle path)
-  - Used for: Beginners, sensitive situations, crisis
-  
-- **Dana (दान)**: Generous, supportive approach (wise teacher)
-  - Used for: Progress celebration, learning moments
-  
-- **Dhanda (दंड)**: Firm, disciplinary approach (strict guru)
-  - Used for: Lack of progress, need for discipline
-  
-- **Bedha (भेद)**: Strategic, analytical approach (Chanakya's tactics)
-  - Used for: Complex goals, optimization needs
 
 ### Topic Selection
 
@@ -620,7 +650,7 @@ Topics are selected based on:
 - Health data analysis
 - Current health score
 
-## 📝 Example Usage Scenarios
+## Example Usage Scenarios
 
 ### Scenario 1: Weight Loss Progress
 
@@ -668,29 +698,14 @@ health_data = {
 - Tone: Sama (gentle)
 - Immediate intervention timing
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
-3. Make your changes
-4. Run tests: `pytest tests/`
-5. Run evaluations: `python src/evals/run_evals.py`
-6. Commit your changes: `git commit -m "Add feature"`
-7. Push to branch: `git push origin feature-name`
-8. Create a Pull Request
-
-## 📄 License
-
-[Add your license information here]
-
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - OpenAI for the Agents SDK
 - DuckDuckGo for search API
 - YouTube Search Python library
 - All contributors and testers
 
-## 📞 Support
+## Support
 
 If you encounter issues:
 1. Check the [Troubleshooting](#troubleshooting) section
@@ -700,6 +715,6 @@ If you encounter issues:
 
 ---
 
-**Happy Coding! 🚀**
+**Happy Coding!**
 
 Remember: This is a health motivation tool. Always consult healthcare professionals for medical advice.

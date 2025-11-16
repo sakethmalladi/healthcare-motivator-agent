@@ -5,6 +5,8 @@ from typing import List
 from agents import Agent, Runner
 from src.models.agent_models import WebSearchRequest, WebSearchResponse, WebResult, AgentType
 from src.tools.search_web import search_web
+from openai import OpenAI
+from src.config.settings import OPENAI_API_KEY, OPENAI_ORG_ID, OPENAI_PROJECT
 
 class WebSearchAgent:
     """Web Search Agent for general health information and community content"""
@@ -17,6 +19,12 @@ class WebSearchAgent:
             model="gpt-4o-mini"
         )
         self.runner = Runner()
+        # OpenAI client for request logging/observability
+        self._oi = OpenAI(
+            api_key=OPENAI_API_KEY or os.getenv("OPENAI_API_KEY"),
+            organization=OPENAI_ORG_ID or os.getenv("OPENAI_ORG_ID"),
+            project=OPENAI_PROJECT or os.getenv("OPENAI_PROJECT")
+        )
     
     def _get_agent_instructions(self) -> str:
         """Get agent instructions for web search"""
@@ -107,6 +115,25 @@ class WebSearchAgent:
             # Use the tool directly instead of relying on agent parsing
             # This is more reliable than parsing agent output
             results = self._parse_agent_response("", search_query)
+
+            # Log via OpenAI for observability
+            openai_response_id = None
+            try:
+                if hasattr(self._oi.responses, "create_and_poll"):
+                    resp = self._oi.responses.create_and_poll(
+                        model="gpt-4o-mini",
+                        input=f"Web search executed. Query='{search_query}', returned {len(results)} results.",
+                        metadata={"agent": "web_search", "purpose": "content_discovery", "query": search_query}
+                    )
+                else:
+                    resp = self._oi.responses.create(
+                        model="gpt-4o-mini",
+                        input=f"Web search executed. Query='{search_query}', returned {len(results)} results.",
+                        metadata={"agent": "web_search", "purpose": "content_discovery", "query": search_query}
+                    )
+                openai_response_id = getattr(resp, "id", None)
+            except Exception:
+                pass
             
             return WebSearchResponse(
                 agent_type=AgentType.WEB_SEARCH,
@@ -119,7 +146,8 @@ class WebSearchAgent:
                     "search_criteria": {
                         "max_results": request.max_results,
                         "search_type": request.search_type
-                    }
+                    },
+                    "openai_response_id": openai_response_id
                 }
             )
             

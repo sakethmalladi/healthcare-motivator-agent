@@ -219,7 +219,9 @@ def build_agent_specific_prompt(agent_type: str, health_data: Dict[str, Any],
         return base_context
 
 def build_planning_prompt(health_data: Dict[str, Any], user_goals: List[str], 
-                         user_preferences: Dict[str, Any] = None) -> str:
+                         user_preferences: Dict[str, Any] = None,
+                         topic_hint: str = "",
+                         must_address_challenges: List[str] = None) -> str:
     """
     Build comprehensive prompt for the planning agent.
     
@@ -240,6 +242,9 @@ def build_planning_prompt(health_data: Dict[str, Any], user_goals: List[str],
     
     health_metrics = _extract_health_metrics(current_data, previous_data)
     
+    must_address_challenges = must_address_challenges or []
+    topic_hint_clause = f"Topic hint (derived heuristically): {topic_hint}" if topic_hint else "Topic hint: None"
+    challenge_clause = ", ".join(must_address_challenges) if must_address_challenges else "None"
     return f"""
 HEALTH DATA ANALYSIS:
 {_build_health_summary(health_metrics)}
@@ -250,6 +255,8 @@ USER PROFILE:
 - Current Challenges: {', '.join(challenges) if challenges else 'None identified'}
 - Recent Achievements: {', '.join(achievements) if achievements else 'None reported'}
 - Preferences: {user_preferences or 'No specific preferences'}
+ - {topic_hint_clause}
+ - Challenges to explicitly address in reasoning: {challenge_clause}
 
 Please analyze the health data and determine the most appropriate planning decisions. Return your response in the following JSON format:
 
@@ -268,7 +275,11 @@ Please analyze the health data and determine the most appropriate planning decis
 IMPORTANT:
 - Analyze the health data comprehensively
 - Consider the user's emotional state, progress level, and specific needs
-- Provide clear reasoning for all decisions
+- Choose ONE topic. If diet/snacking/calories/meal/recipe related, prefer 'Meal Plan'.
+- If endurance/workout/strength/run/pacing related, prefer 'Workout Plan'.
+- If sleep/stress/routine/consistency related, prefer 'Health Habits'.
+- If a Topic hint is present above, you MUST set the topic exactly to that hint unless it is clearly wrong.
+- Provide clear reasoning for all decisions and explicitly address: {challenge_clause}
 - Return ONLY valid JSON without any additional text or markdown formatting
 """
 # ========== HELPER FUNCTIONS ==========
