@@ -5,6 +5,9 @@ from typing import List
 from agents import Agent, Runner
 from src.models.agent_models import CuratedSearchRequest, CuratedSearchResponse, CuratedArticle, AgentType
 from src.tools.search_web import search_web
+from src.tools.curation_tool import curate_from_sources
+from openai import OpenAI
+from src.config.settings import OPENAI_API_KEY, OPENAI_ORG_ID, OPENAI_PROJECT
 
 class CuratedSearchAgent:
     """Curated Search Agent for finding high-quality health articles and resources"""
@@ -17,6 +20,12 @@ class CuratedSearchAgent:
             model="gpt-4o-mini"
         )
         self.runner = Runner()
+        # OpenAI client for logging visibility
+        self._oi = OpenAI(
+            api_key=OPENAI_API_KEY or os.getenv("OPENAI_API_KEY"),
+            organization=OPENAI_ORG_ID or os.getenv("OPENAI_ORG_ID"),
+            project=OPENAI_PROJECT or os.getenv("OPENAI_PROJECT")
+        )
         
         # Curated sources for high-quality health content
         self.trusted_sources = [
@@ -216,6 +225,61 @@ class CuratedSearchAgent:
             return [CuratedArticle(**article) for article in tool_result["articles"]]
         else:
             return []
+    
+    async def curate_from_results(self, request: CuratedSearchRequest, web_results: List, youtube_results: List) -> CuratedSearchResponse:
+        """Curate articles from web search and YouTube search results"""
+        try:
+            curated_articles = curate_from_sources(
+                web_results=web_results,
+                youtube_results=youtube_results,
+                planning_context=request.planning_context or {},
+                max_results=request.max_results
+            )
+
+            # Log curated step to OpenAI for observability
+            openai_response_id = None
+            try:
+                summary = f"Curated {len(curated_articles)} items from web+youtube."
+                if hasattr(self._oi.responses, "create_and_poll"):
+                    resp = self._oi.responses.create_and_poll(
+                        model="gpt-4o-mini",
+                        input=summary,
+                        metadata={"agent": "curated_search", "purpose": "curation"}
+                    )
+                else:
+                    resp = self._oi.responses.create(
+                        model="gpt-4o-mini",
+                        input=summary,
+                        metadata={"agent": "curated_search", "purpose": "curation"}
+                    )
+                openai_response_id = getattr(resp, "id", None)
+            except Exception:
+                pass
+            
+            return CuratedSearchResponse(
+                agent_type=AgentType.CURATED_SEARCH,
+                success=True,
+                content=f"Curated {len(curated_articles)} articles from web and YouTube results",
+                articles=curated_articles,
+                search_query_used=request.search_query,
+                metadata={
+                    "total_results": len(curated_articles),
+                    "web_results_used": len([r for r in web_results]),
+                    "youtube_results_used": len([r for r in youtube_results]),
+                    "trusted_sources_used": len(set(article.source for article in curated_articles)),
+                    "openai_response_id": openai_response_id
+                }
+            )
+            
+        except Exception as e:
+            return CuratedSearchResponse(
+                agent_type=AgentType.CURATED_SEARCH,
+                success=False,
+                content=f"Error curating from results: {str(e)}",
+                articles=[],
+                search_query_used=request.search_query,
+                metadata={"error": str(e)}
+            )
     
     def get_agent_info(self) -> dict:
         """Get information about this agent"""

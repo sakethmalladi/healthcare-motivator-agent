@@ -1,9 +1,12 @@
 # src/tools/planning_tool.py
 
-from typing import Dict, List, Optional, Tuple
-from datetime import datetime, time
+import json
+import asyncio
+from typing import Dict, List, Optional, Tuple, Any
+from datetime import datetime, time, date
 from enum import Enum
-from src.models.health_kit_models import HealthKitData, HealthAnalysis
+from agents import Agent, Runner
+from src.models.health_kit_models import HealthKitData, HealthAnalysis, HealthTrend, HealthMetricType
 
 class IndianTone(str, Enum):
     """Indian historical context tones for health guidance"""
@@ -53,10 +56,84 @@ class PlanningTool:
                 "use_cases": ["complex goals", "plateau situations", "optimization needs"]
             }
         }
+        
+        # Initialize LLM agent for health analysis (skip in active event loop environments)
+        try:
+            loop = asyncio.get_running_loop()
+            if loop and loop.is_running():
+                self.health_analysis_agent = None
+                self.runner = None
+            else:
+                self.health_analysis_agent = Agent(
+                    name="HealthAnalysisAgent",
+                    instructions=self._get_health_analysis_instructions(),
+                    tools=[],
+                    model="gpt-4o-mini"
+                )
+                self.runner = Runner()
+        except RuntimeError:
+            # No running loop; safe to initialize
+            self.health_analysis_agent = Agent(
+                name="HealthAnalysisAgent",
+                instructions=self._get_health_analysis_instructions(),
+                tools=[],
+                model="gpt-4o-mini"
+            )
+            self.runner = Runner()
+    
+    def _get_health_analysis_instructions(self) -> str:
+        """Get agent instructions for health analysis"""
+        return """
+        You are a specialized Health Analysis Agent for comprehensive health data evaluation.
+        
+        Your role is to:
+        1. Analyze all health metrics comprehensively (steps, weight, sleep, calories, etc.)
+        2. Calculate an overall health score (0-100) based on comprehensive analysis of all metrics
+        3. Identify trends by comparing current vs previous data
+        4. Generate specific, actionable recommendations
+        5. Identify key concerns that need attention
+        6. Recognize achievements and progress made
+        7. Suggest realistic next goals
+        
+        IMPORTANT:
+        - Analyze ALL available metrics comprehensively
+        - Consider the relationship between different metrics
+        - Provide detailed, specific recommendations
+        - Be realistic and actionable in your suggestions
+        - Consider both positive and negative trends
+        - Return your response in the exact JSON format specified in the prompt
+        """
     
     def analyze_health_data(self, current_data: HealthKitData, previous_data: Optional[HealthKitData] = None) -> HealthAnalysis:
-        """Analyze health data and determine overall health score and trends"""
+        """Analyze health data using LLM to determine overall health score and trends"""
         
+        try:
+            # If runner is unavailable (e.g., test async loop), use rule-based immediately
+            if not self.runner or not self.health_analysis_agent:
+                return self._analyze_health_data_rule_based(current_data, previous_data)
+            
+            # Build prompt for health analysis
+            prompt = self._build_health_analysis_prompt(current_data, previous_data)
+            
+            # Call LLM for health analysis
+            response = self.runner.run_sync(self.health_analysis_agent, prompt)
+            
+            # Parse LLM response
+            parsed_response = self._parse_health_analysis_response(response.final_output)
+            
+            # Create HealthAnalysis object from LLM response
+            return self._create_health_analysis_from_llm(
+                current_data=current_data,
+                previous_data=previous_data,
+                health_analysis_data=parsed_response
+            )
+        except Exception as e:
+            # Fallback to rule-based analysis if LLM fails
+            print(f"Warning: LLM health analysis failed: {e}. Falling back to rule-based analysis.")
+            return self._analyze_health_data_rule_based(current_data, previous_data)
+    
+    def _analyze_health_data_rule_based(self, current_data: HealthKitData, previous_data: Optional[HealthKitData] = None) -> HealthAnalysis:
+        """Fallback rule-based health analysis"""
         # Calculate health score based on various metrics
         health_score = self._calculate_health_score(current_data)
         
@@ -285,4 +362,186 @@ class PlanningTool:
         """Calculate habits-related health score"""
         # Implementation for habits scoring
         return 50.0
+    
+    def _build_health_analysis_prompt(self, current_data: HealthKitData, previous_data: Optional[HealthKitData] = None) -> str:
+        """Build prompt for health analysis LLM"""
+        
+        # Build health data section
+        current_steps = current_data.get_daily_steps()
+        current_weight = current_data.get_weight()
+        current_sleep = current_data.get_sleep_hours()
+        current_calories_burned = current_data.get_daily_calories_burned()
+        current_calories_consumed = current_data.get_daily_calories_consumed()
+        
+        health_data_section = f"""
+CURRENT HEALTH DATA:
+- Steps: {current_steps if current_steps else 'N/A'}
+- Weight: {current_weight if current_weight else 'N/A'} kg
+- Sleep: {current_sleep if current_sleep else 'N/A'} hours
+- Calories Burned: {current_calories_burned if current_calories_burned else 'N/A'}
+- Calories Consumed: {current_calories_consumed if current_calories_consumed else 'N/A'}
+- Date: {current_data.date}
+"""
+        
+        if previous_data:
+            prev_steps = previous_data.get_daily_steps()
+            prev_weight = previous_data.get_weight()
+            prev_sleep = previous_data.get_sleep_hours()
+            health_data_section += f"""
+PREVIOUS HEALTH DATA:
+- Steps: {prev_steps if prev_steps else 'N/A'}
+- Weight: {prev_weight if prev_weight else 'N/A'} kg
+- Sleep: {prev_sleep if prev_sleep else 'N/A'} hours
+- Date: {previous_data.date}
+"""
+        
+        return f"""
+{health_data_section}
+
+Please analyze this health data comprehensively and provide your analysis in the following JSON format:
+
+{{
+    "overall_health_score": <float 0-100>,
+    "trends": [
+        {{
+            "metric_type": "<steps|weight|sleep|calories_burned|calories_consumed>",
+            "current_value": <float>,
+            "previous_value": <float or null>,
+            "trend_direction": "<increasing|decreasing|stable>",
+            "change_percentage": <float>,
+            "trend_strength": "<strong|moderate|weak>"
+        }}
+    ],
+    "recommendations": ["<recommendation 1>", "<recommendation 2>", ...],
+    "concerns": ["<concern 1>", "<concern 2>", ...],
+    "achievements": ["<achievement 1>", "<achievement 2>", ...],
+    "next_goals": ["<goal 1>", "<goal 2>", ...]
+}}
+
+IMPORTANT INSTRUCTIONS:
+- Analyze ALL metrics comprehensively to determine overall health score (0-100)
+- Consider the relationship between different metrics
+- Identify trends by comparing current and previous data (if available)
+- Generate specific, actionable recommendations
+- Identify key concerns that need attention
+- Recognize achievements and progress made
+- Suggest realistic next goals
+
+Return ONLY valid JSON without any additional text or markdown formatting.
+"""
+    
+    def _parse_health_analysis_response(self, agent_output: str) -> Dict[str, Any]:
+        """Parse the LLM response for health analysis"""
+        default_response = {
+            "overall_health_score": 50.0,
+            "trends": [],
+            "recommendations": [],
+            "concerns": [],
+            "achievements": [],
+            "next_goals": []
+        }
+        
+        try:
+            agent_output = agent_output.strip()
+            
+            # Remove markdown code blocks if present
+            if "```json" in agent_output:
+                start = agent_output.find("```json") + 7
+                end = agent_output.find("```", start)
+                if end != -1:
+                    agent_output = agent_output[start:end].strip()
+            elif "```" in agent_output:
+                start = agent_output.find("```") + 3
+                end = agent_output.find("```", start)
+                if end != -1:
+                    agent_output = agent_output[start:end].strip()
+            
+            # Find JSON object boundaries
+            if "{" in agent_output and "}" in agent_output:
+                start = agent_output.find("{")
+                end = agent_output.rfind("}") + 1
+                agent_output = agent_output[start:end]
+            
+            # Parse JSON
+            parsed = json.loads(agent_output)
+            
+            if not isinstance(parsed, dict):
+                return default_response
+            
+            return parsed
+            
+        except (json.JSONDecodeError, ValueError, KeyError) as e:
+            print(f"Warning: Failed to parse health analysis response as JSON: {str(e)}")
+            return default_response
+    
+    def _create_health_analysis_from_llm(
+        self,
+        current_data: HealthKitData,
+        previous_data: Optional[HealthKitData],
+        health_analysis_data: Dict[str, Any]
+    ) -> HealthAnalysis:
+        """Create HealthAnalysis object from LLM response"""
+        
+        # Extract and convert trends
+        trends = []
+        for trend_data in health_analysis_data.get("trends", []):
+            try:
+                metric_type_str = trend_data.get("metric_type", "").lower()
+                metric_type_map = {
+                    "steps": HealthMetricType.STEPS,
+                    "weight": HealthMetricType.WEIGHT,
+                    "sleep": HealthMetricType.SLEEP_HOURS,
+                    "sleep_hours": HealthMetricType.SLEEP_HOURS,
+                    "calories_burned": HealthMetricType.CALORIES_BURNED,
+                    "calories_consumed": HealthMetricType.CALORIES_CONSUMED,
+                    "heart_rate": HealthMetricType.HEART_RATE,
+                    "body_fat": HealthMetricType.BODY_FAT,
+                    "muscle_mass": HealthMetricType.MUSCLE_MASS,
+                    "workout_duration": HealthMetricType.WORKOUT_DURATION,
+                    "water_intake": HealthMetricType.WATER_INTAKE
+                }
+                metric_type = metric_type_map.get(metric_type_str, HealthMetricType.STEPS)
+                
+                trend = HealthTrend(
+                    metric_type=metric_type,
+                    current_value=float(trend_data.get("current_value", 0)),
+                    previous_value=float(trend_data.get("previous_value", 0)) if trend_data.get("previous_value") is not None else 0,
+                    trend_direction=trend_data.get("trend_direction", "stable"),
+                    change_percentage=float(trend_data.get("change_percentage", 0)),
+                    trend_strength=trend_data.get("trend_strength", "moderate")
+                )
+                trends.append(trend)
+            except (ValueError, KeyError) as e:
+                print(f"Warning: Skipping invalid trend data: {e}")
+                continue
+        
+        # Extract lists and validate
+        recommendations = health_analysis_data.get("recommendations", [])
+        concerns = health_analysis_data.get("concerns", [])
+        achievements = health_analysis_data.get("achievements", [])
+        next_goals = health_analysis_data.get("next_goals", [])
+        
+        if not isinstance(recommendations, list):
+            recommendations = []
+        if not isinstance(concerns, list):
+            concerns = []
+        if not isinstance(achievements, list):
+            achievements = []
+        if not isinstance(next_goals, list):
+            next_goals = []
+        
+        # Extract and validate health score
+        overall_health_score = float(health_analysis_data.get("overall_health_score", 50.0))
+        overall_health_score = max(0.0, min(100.0, overall_health_score))
+        
+        return HealthAnalysis(
+            user_id=current_data.user_id,
+            analysis_date=current_data.date,
+            overall_health_score=overall_health_score,
+            trends=trends,
+            recommendations=recommendations,
+            concerns=concerns,
+            achievements=achievements,
+            next_goals=next_goals
+        )
 

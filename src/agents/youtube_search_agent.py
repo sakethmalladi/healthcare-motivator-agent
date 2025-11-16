@@ -1,10 +1,14 @@
 # src/agents/youtube_search_agent.py
 
 import os
+import json
 from typing import List
 from agents import Agent, Runner    
 from src.models.agent_models import YouTubeSearchRequest, YouTubeSearchResponse, YouTubeVideo, AgentType
 from src.tools.search_youtube import search_youtube
+from src.tools.youtube_transcript import get_transcript
+from openai import OpenAI
+from src.config.settings import OPENAI_API_KEY, OPENAI_ORG_ID, OPENAI_PROJECT
 
 class YouTubeSearchAgent:
     """YouTube Search Agent for finding fitness and health videos"""
@@ -13,10 +17,16 @@ class YouTubeSearchAgent:
         self.agent = Agent(
             name="YouTubeSearchAgent",
             instructions=self._get_agent_instructions(),
-            tools=[self._search_youtube_tool],
+            tools=[self._search_youtube_tool, self._get_transcript_tool],
             model="gpt-4o-mini"
         )
         self.runner = Runner()
+        # OpenAI client for logging/tool-calling visibility
+        self._oi = OpenAI(
+            api_key=OPENAI_API_KEY or os.getenv("OPENAI_API_KEY"),
+            organization=OPENAI_ORG_ID or os.getenv("OPENAI_ORG_ID"),
+            project=OPENAI_PROJECT or os.getenv("OPENAI_PROJECT"),
+        )
     
     def _get_agent_instructions(self) -> str:
         """Get agent instructions for YouTube search"""
@@ -72,6 +82,14 @@ class YouTubeSearchAgent:
                 "videos": [],
                 "query_used": query
             }
+
+    def _get_transcript_tool(self, url_or_id: str, max_chars: int = 1200) -> dict:
+        """Tool function to fetch a transcript for a given YouTube URL or ID."""
+        try:
+            result = get_transcript(url_or_id=url_or_id, max_chars=max_chars)
+            return result
+        except Exception as e:
+            return {"status": "error", "transcript": "", "message": str(e)}
     
     async def search_videos(self, request: YouTubeSearchRequest) -> YouTubeSearchResponse:
         """Search for YouTube videos based on the request"""
@@ -94,6 +112,31 @@ class YouTubeSearchAgent:
             # Use the tool directly instead of relying on agent parsing
             # This is more reliable than parsing agent output
             videos = self._parse_agent_response("", search_query)
+
+            # Optionally enrich top results with transcripts
+            enriched = []
+            for i, v in enumerate(videos[: request.max_results]):
+                try:
+                    t = self._get_transcript_tool(v.url, max_chars=500)
+                    if t.get("status") == "success" and t.get("transcript"):
+                        # Store transcript in description field for convenience
+                        v.description = t["transcript"]
+                except Exception:
+                    pass
+                enriched.append(v)
+            if enriched:
+                videos = enriched
+
+            # Log via OpenAI Responses tool-calling so this agent appears in dashboard
+            openai_response_id = None
+            try:
+                openai_response_id = self._log_run_via_openai_tools(
+                    query=search_query,
+                    max_results=request.max_results,
+                    videos=[{"title": v.title, "url": v.url, "description": v.description or ""} for v in videos]
+                )
+            except Exception:
+                pass
             
             
             return YouTubeSearchResponse(
@@ -108,7 +151,9 @@ class YouTubeSearchAgent:
                         "max_results": request.max_results,
                         "video_duration": request.video_duration,
                         "category": request.category
-                    }
+                    },
+                    "transcripts_included": sum(1 for v in videos if v.description),
+                    "openai_response_id": openai_response_id
                 }
             )
             
@@ -169,6 +214,103 @@ class YouTubeSearchAgent:
             return [YouTubeVideo(**video) for video in tool_result["videos"]]
         else:
             return []
+
+    def _log_run_via_openai_tools(self, query: str, max_results: int, videos: list) -> str:
+        """
+        Create a Responses run with function tools; execute locally and submit outputs for logging.
+        Returns response_id. Uses create_and_poll when available; falls back to manual loop; as a last
+        resort, sends a simple logging request so an entry always appears.
+        """
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "search_youtube",
+                    "description": "Search YouTube and return a list of top results as {title,url}.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {"type": "string"},
+                            "max_results": {"type": "integer"}
+                        },
+                        "required": ["query", "max_results"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_transcript",
+                    "description": "Fetch transcript for a YouTube video URL or ID.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "url_or_id": {"type": "string"},
+                            "max_chars": {"type": "integer"}
+                        },
+                        "required": ["url_or_id"]
+                    }
+                }
+            }
+        ]
+        try:
+            # Prefer create_and_poll (available in newer SDKs)
+            if hasattr(self._oi.responses, "create_and_poll"):
+                resp = self._oi.responses.create_and_poll(
+                    model="gpt-4o-mini",
+                    input=(
+                        "Call search_youtube with the provided query and max_results, "
+                        "then call get_transcript for each result. Summarize outputs."
+                    ),
+                    tools=tools,
+                    metadata={"agent": "youtube_search", "purpose": "content_discovery", "query": query},
+                )
+                # If it still needs tool outputs (unlikely), fall back to manual loop
+                if getattr(resp, "status", "") != "requires_action":
+                    return getattr(resp, "id", None)
+            # Manual loop
+            resp = self._oi.responses.create(
+                model="gpt-4o-mini",
+                input=(
+                    "Call search_youtube with the provided query and max_results, "
+                    "then call get_transcript for each result. Summarize outputs."
+                ),
+                tools=tools,
+                metadata={"agent": "youtube_search", "purpose": "content_discovery", "query": query},
+            )
+            while getattr(resp, "status", "") == "requires_action":
+                calls = resp.required_action.submit_tool_outputs.tool_calls
+                outputs = []
+                for call in calls:
+                    name = call.function.name
+                    args = call.function.arguments or {}
+                    if name == "search_youtube":
+                        outputs.append({
+                            "tool_call_id": call.id,
+                            "output": json.dumps([{"title": v["title"], "url": v["url"]} for v in videos][:max_results])
+                        })
+                    elif name == "get_transcript":
+                        vid = args.get("url_or_id", "")
+                        try:
+                            t = get_transcript(vid, max_chars=int(args.get("max_chars", 400)))
+                        except Exception as e:
+                            t = {"status": "error", "message": str(e), "transcript": ""}
+                        outputs.append({"tool_call_id": call.id, "output": json.dumps(t)})
+                    else:
+                        outputs.append({"tool_call_id": call.id, "output": "{}"})
+                resp = self._oi.responses.submit_tool_outputs(response_id=resp.id, tool_outputs=outputs)
+            return getattr(resp, "id", None)
+        except Exception:
+            # Guaranteed lightweight logging entry if tool path fails
+            try:
+                minimal = self._oi.responses.create(
+                    model="gpt-4o-mini",
+                    input=f"YouTube agent executed locally. Query='{query}', returned {len(videos)} results.",
+                    metadata={"agent": "youtube_search", "purpose": "content_discovery", "mode": "minimal_log"},
+                )
+                return getattr(minimal, "id", None)
+            except Exception:
+                return None
     
     def get_agent_info(self) -> dict:
         """Get information about this agent"""

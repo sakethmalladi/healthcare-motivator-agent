@@ -17,7 +17,7 @@ from src.models.health_kit_models import HealthKitData
 from src.utils.prompt_builder import build_agent_specific_prompt
 
 class HealthCoordinator:
-    """Main coordinator that manages all 4 agentsl"""
+    """Main coordinator that manages all 4 agents"""
     
     def __init__(self):
         self.planning_agent = PlanningAgent()
@@ -37,10 +37,10 @@ class HealthCoordinator:
                 user_goals=health_data.get("goals", []),
                 user_preferences=health_data.get("preferences", {}),
                 custom_instruction=custom_instruction,
-                health_analysis=health_data  # Pass the health_data as health_analysis
+                health_analysis=health_data
             )
             
-            # Step 2: Get planning decision (this runs first as other agents depend on it)
+            # Step 2: Get planning decision
             planning_response = await self.planning_agent.create_plan(planning_request)
             
             if not planning_response.success:
@@ -55,6 +55,10 @@ class HealthCoordinator:
             planning_context = planning_response.context_for_other_agents
             
             # Create agent requests with enhanced search queries
+            youtube_category = self._determine_youtube_category(planning_response.decision)
+            curated_content_type = self._determine_content_type(planning_response.decision)
+            web_search_type = self._determine_web_search_type(planning_response.decision)
+            
             youtube_request = YouTubeSearchRequest(
                 user_id=user_id,
                 health_data=health_data,
@@ -62,7 +66,17 @@ class HealthCoordinator:
                 custom_instruction=custom_instruction,
                 search_query=self._build_enhanced_search_query(health_data, planning_response.decision, "fitness"),
                 max_results=3,
-                category="fitness"
+                category=youtube_category
+            )
+
+            web_request = WebSearchRequest(
+                user_id=user_id,
+                health_data=health_data,
+                planning_context=planning_context,
+                custom_instruction=custom_instruction,
+                search_query=self._build_enhanced_search_query(health_data, planning_response.decision, "health community"),
+                max_results=3,
+                search_type=web_search_type
             )
             
             curated_request = CuratedSearchRequest(
@@ -72,17 +86,7 @@ class HealthCoordinator:
                 custom_instruction=custom_instruction,
                 search_query=self._build_enhanced_search_query(health_data, planning_response.decision, "health"),
                 max_results=3,
-                content_type="article"
-            )
-            
-            web_request = WebSearchRequest(
-                user_id=user_id,
-                health_data=health_data,
-                planning_context=planning_context,
-                custom_instruction=custom_instruction,
-                search_query=self._build_enhanced_search_query(health_data, planning_response.decision, "health community"),
-                max_results=3,
-                search_type="general"
+                content_type=curated_content_type
             )
             
             journaling_request = JournalingRequest(
@@ -97,29 +101,38 @@ class HealthCoordinator:
                 achievements=health_data.get("achievements", [])
             )
             
-            # Step 4: Run all agents in parallel
+            # Step 4: Run web and YouTube search agents in parallel
             youtube_task = self.youtube_agent.search_videos(youtube_request)
-            curated_task = self.curated_agent.search_articles(curated_request)
             web_task = self.web_agent.search_web(web_request)
             journaling_task = self.journaling_agent.create_journal_entry(journaling_request)
             
-            # Wait for all agents to complete
-            youtube_response, curated_response, web_response, journaling_response = await asyncio.gather(
-                youtube_task, curated_task, web_task, journaling_task,
+            # Wait for web and YouTube to complete (needed for curated agent)
+            youtube_response, web_response, journaling_response = await asyncio.gather(
+                youtube_task, web_task, journaling_task,
                 return_exceptions=True
             )
             
-            # Step 5: Handle any exceptions
+            # Step 5: Handle exceptions for web and YouTube
             if isinstance(youtube_response, Exception):
                 youtube_response = None
-            if isinstance(curated_response, Exception):
-                curated_response = None
             if isinstance(web_response, Exception):
                 web_response = None
             if isinstance(journaling_response, Exception):
                 journaling_response = None
             
-            # Step 6: Create coordinated response
+            # Step 6: Now run curated agent with results from web and YouTube
+            # Pass both web and YouTube results to curated agent
+            curated_response = await self.curated_agent.curate_from_results(
+                request=curated_request,
+                web_results=web_response.results if web_response and web_response.success else [],
+                youtube_results=youtube_response.videos if youtube_response and youtube_response.success else []
+            )
+            
+            # Handle curated agent exception
+            if isinstance(curated_response, Exception):
+                curated_response = None
+            
+            # Step 7: Create coordinated response
             overall_summary = self._create_overall_summary(
                 planning_response, youtube_response, curated_response, 
                 web_response, journaling_response
@@ -134,6 +147,10 @@ class HealthCoordinator:
                 journaling_results=journaling_response,
                 overall_summary=overall_summary,
                 metadata={
+                    "planning": {
+                        "metadata": planning_response.metadata,
+                        "context": planning_context
+                    },
                     "agents_successful": sum([
                         1 for response in [youtube_response, curated_response, web_response, journaling_response]
                         if response and response.success
@@ -207,6 +224,61 @@ class HealthCoordinator:
             base_query += " strategic advanced"
         
         return base_query
+    
+    def _determine_youtube_category(self, planning_decision) -> str:
+        """Determine YouTube category based on planning decision"""
+        topic = planning_decision.topic.lower()
+        
+        if "workout" in topic or "exercise" in topic:
+            return "fitness"
+        elif "meal" in topic or "nutrition" in topic or "diet" in topic:
+            return "nutrition"
+        elif "habit" in topic or "lifestyle" in topic:
+            return "motivation"
+        else:
+            return "fitness"
+    
+    def _determine_content_type(self, planning_decision) -> str:
+        """Determine curated content type based on planning decision"""
+        topic = planning_decision.topic.lower()
+        theme = planning_decision.theme.lower()
+        
+        if "meal" in topic or "nutrition" in topic or "diet" in topic:
+            # Check if recipe-related
+            if "recipe" in theme or "cooking" in theme:
+                return "recipe"
+            else:
+                return "guide"  # Meal planning guides
+        elif "workout" in topic or "exercise" in topic:
+            # Check if research-backed content is needed
+            if "strategic" in theme or "advanced" in theme:
+                return "study"  # Research studies for advanced users
+            else:
+                return "guide"  # Workout guides
+        elif "research" in theme or "study" in theme:
+            return "study"
+        else:
+            return "article"  # Default fallback
+    
+    def _determine_web_search_type(self, planning_decision) -> str:
+        """Determine web search type based on planning decision"""
+        theme = planning_decision.theme.lower()
+        topic = planning_decision.topic.lower()
+        
+        # If crisis or urgent need, look for recent news
+        if "crisis" in theme or "urgent" in theme or "intervention" in theme:
+            return "news"
+        
+        # If strategic/advanced, look for academic content
+        if "strategic" in theme or "analytical" in theme or "bedha" in theme.lower():
+            return "academic"
+        
+        # If habit building or community support, look for forums
+        if "habit" in theme or "community" in theme or "support" in theme:
+            return "forum"
+        
+        # Default to general search
+        return "general"
     
     def _determine_journal_type(self, planning_context: Dict[str, Any]) -> str:
         """Determine journal type based on planning context"""

@@ -251,15 +251,25 @@ USER PROFILE:
 - Recent Achievements: {', '.join(achievements) if achievements else 'None reported'}
 - Preferences: {user_preferences or 'No specific preferences'}
 
-Please analyze the health data and determine the most appropriate:
-1. THEME (current situation)
-2. TOPIC (focus area)
-3. TONE (Indian historical approach)
-4. TIMING (when to engage)
-5. REASONING (why these choices)
-6. CONFIDENCE (0-1 scale)
+Please analyze the health data and determine the most appropriate planning decisions. Return your response in the following JSON format:
 
-Consider the user's emotional state, progress level, and specific needs.
+{{
+    "theme": "<Motivation Needed|Progress Celebration|Struggle Support|Goal Adjustment|Habit Building|Crisis Intervention>",
+    "topic": "<Workout Plan|Meal Plan|Health Habits>",
+    "tone": "<Sama|Dana|Dhanda|Bedha>",
+    "timing": {{
+        "immediate": <boolean>,
+        "frequency": "<daily|twice_daily|weekly>"
+    }},
+    "reasoning": "<detailed explanation of your decisions>",
+    "confidence": <float between 0 and 1>
+}}
+
+IMPORTANT:
+- Analyze the health data comprehensively
+- Consider the user's emotional state, progress level, and specific needs
+- Provide clear reasoning for all decisions
+- Return ONLY valid JSON without any additional text or markdown formatting
 """
 # ========== HELPER FUNCTIONS ==========
 
