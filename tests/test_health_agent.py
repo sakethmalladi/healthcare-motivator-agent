@@ -1,50 +1,66 @@
-# tests/test_health_agent.py
-
 import pytest
-from src.agents.health_agent import run_health_agent
-from src.models.health_models import MotivationRequest, MotivationResponse
+import sys
+from src.agents.health_coordinator import HealthCoordinator
+from src.tools.apple_health_kit_mock import AppleHealthKitMock
+
+
+def _safe(s: str) -> str:
+    enc = getattr(sys.stdout, "encoding", None) or "utf-8"
+    try:
+        return s.encode(enc, errors="ignore").decode(enc, errors="ignore")
+    except Exception:
+        return s
+
 
 @pytest.mark.asyncio
-async def test_health_agent_run_real_apis():
-    """
-    Run agent using real DuckDuckGo + YouTube searches.
-    Returns motivational text + top 3 web articles + top 3 YouTube videos.
-    """
+async def test_end_to_end_simple():
+    """Minimal end-to-end test with sample input and step-by-step outputs."""
+    coordinator = HealthCoordinator()
+    hk = AppleHealthKitMock()
 
-    # Sample MotivationRequest
-    sample_request = MotivationRequest(
-        user_id="user123",
-        previous_data="Walked 3,000 steps yesterday",
-        current_data="Walked 6,000 steps today",
-        action_taken="Added an extra workout session",
-        next_action="Maintain 7,000+ steps tomorrow",
-        custom_instruction="Keep motivation high and suggest healthy recipes",
-        goal="Lose 5kg in 2 months",
-        progress="I doubled my steps today and added an extra workout!"
+    # Sample input (simple, single scenario)
+    current_data = hk.generate_health_data("user_simple", 0, "progress")
+    previous_data = hk.generate_health_data("user_simple", 1, "normal")
+    sample = {
+        "user_id": "user_simple",
+        "current_data": current_data,
+        "previous_data": previous_data,
+        "goals": ["Lose 5kg in 2 months"],
+        "preferences": {"focus": "sustainable habits"},
+        "mood": "motivated",
+        "energy_level": 7,
+        "challenges": ["evening snacking"],
+        "achievements": ["Walked 7,500 steps today"]
+    }
+
+    # Run complete project flow
+    result = await coordinator.process_health_request(
+        user_id=sample["user_id"],
+        health_data=sample,
+        custom_instruction="Keep it simple and sustainable"
     )
 
-    # Run the health agent
-    result: MotivationResponse = await run_health_agent(sample_request)
+    # Minimal prints and assertions
+    print("\n===== RESULT =====")
+    assert result.planning_decision is not None
+    print(f"Planning: {result.planning_decision.tone} for {result.planning_decision.topic}")
 
-    # Print results for visibility
-    print("\n========== MOTIVATION TEXT ==========")
-    print(result.prompt)
-    print("====================================\n")
+    # Print OpenAI response IDs to help locate logs in dashboard
+    try:
+        planning_meta = (result.metadata or {}).get("planning", {})
+        pm = planning_meta.get("metadata", {}) if planning_meta else {}
+        planning_resp_id = pm.get("openai_response_id")
+        if planning_resp_id:
+            print(f"Planning OpenAI response_id: {planning_resp_id}")
+    except Exception:
+        pass
+    try:
+        if result.curated_results and result.curated_results.metadata:
+            curated_resp_id = result.curated_results.metadata.get("openai_response_id")
+            if curated_resp_id:
+                print(f"Curated OpenAI response_id: {curated_resp_id}")
+    except Exception:
+        pass
 
-    print("---------- Top 3 Web Results ---------")
-    for r in result.web_results:
-        print(f"{r['title']} -> {r['url']}")
-    print("-------------------------------------\n")
-
-    print("-------- Top 3 YouTube Results -------")
-    for v in result.youtube_videos:
-        print(f"{v['title']} -> {v['url']}")
-    print("-------------------------------------\n")
-
-    # ---------------- Basic assertions ----------------
-    assert isinstance(result, MotivationResponse)
-    assert isinstance(result.prompt, str) and len(result.prompt) > 10
-    assert len(result.web_results) == 3
-    assert all("title" in r and "url" in r for r in result.web_results)
-    assert len(result.youtube_videos) == 3
-    assert all("title" in v and "url" in v for v in result.youtube_videos)
+    assert isinstance(result.overall_summary, str) and len(result.overall_summary) > 0
+    print(_safe(result.overall_summary[:200] + ("..." if len(result.overall_summary) > 200 else "")))

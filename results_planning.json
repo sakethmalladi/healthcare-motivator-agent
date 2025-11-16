@@ -1,0 +1,24 @@
+{
+  "eval": "planning_quality",
+  "average": 0.7666666666666666,
+  "results": [
+    {
+      "id": "p1",
+      "topic": "Meal Plan",
+      "score": 1.0,
+      "notes": "The plan matches the expected topic of Meal Plan and successfully addresses the user's challenges with evening snacking while incorporating sustainable habits."
+    },
+    {
+      "id": "p2",
+      "topic": "Workout Plan",
+      "score": 0.8,
+      "notes": "The topic matches the user's needs as it is a workout plan, and it includes key elements like endurance progression and pacing strategy. However, the reasoning mentions a fallback due to an error, which may indicate a lack of clarity or focus in addressing the user's challenges."
+    },
+    {
+      "id": "p3",
+      "topic": "Health Habits",
+      "score": 0.5,
+      "notes": "The topic matches the user's needs as it falls under 'Health Habits', but the reasoning does not address the user's challenges related to sleep routine and stress reduction. The timing is reasonable as it suggests a daily frequency, but the immediate aspect is not aligned with the user's context."
+    }
+  ]
+}
