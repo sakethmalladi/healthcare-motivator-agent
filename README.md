@@ -73,8 +73,6 @@ Planning Agent (analyzes health data)
     ↓
 Coordinated Response
 ```
-
-## Running Tests
 ## Agent Evals
 
 This project includes simple Agent Evals you can run locally:
